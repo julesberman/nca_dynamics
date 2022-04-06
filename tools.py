@@ -1,12 +1,10 @@
-from re import X
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import random
 import math
 from collections.abc import Iterable
-
-from torch import square
+import scipy
 
 
 def plot_3d(X, title="", size=(5, 12)):
@@ -198,8 +196,8 @@ def sigmoid(N, width):
     return ss-1
 
 
-def tanh(t, a=1, lam=1):
-    return a/(1+np.exp(lam*-t))
+def tanh(t, a=1, lam=1, center=0):
+    return a/(1+np.exp(lam*-(t+center)))
 
 
 def plot_embed(data, Ns, hankel=False, sz=(20, 14), c=None, line=False, center=False, square_plot=False):
@@ -272,5 +270,27 @@ def plot_embed(data, Ns, hankel=False, sz=(20, 14), c=None, line=False, center=F
 
 def normalize(x):
     x -= np.mean(x)
-    x /= np.max(x)
+    x /= np.max(np.abs(x))
     return x
+
+
+def siavash(Xseries, N, shift):
+
+    X = scipy.linalg.hankel(Xseries)[: N + shift, : -N - shift + 1]
+
+    X0 = X[:-shift]
+    Xp = X[shift:]
+
+    X0Xp = X0 @ Xp.T / X0.shape[1]
+    X0X0 = X0 @ X0.T / X0.shape[1]
+
+    GEV_sol = scipy.linalg.eig(X0Xp, X0X0)
+
+    evals = np.real_if_close(GEV_sol[0])
+    evecs = np.real_if_close(GEV_sol[1])
+
+    sort_order = np.argsort(evals)[::-1]
+    eigvals = evals[sort_order]
+    eigvecs = evecs[:, sort_order]
+
+    return eigvecs, eigvals
