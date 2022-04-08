@@ -5,6 +5,7 @@ import random
 import math
 from collections.abc import Iterable
 import scipy
+import scipy.io
 
 
 def plot_3d(X, title="", size=(5, 12)):
@@ -114,7 +115,7 @@ def build_signal(N, f, spike_locations, noise=0, normalize=True, return_spikes=F
 # FROM https://github.com/sethhirsh/sHAVOK/blob/master/Figure%201.ipynb
 def build_hankel(data, rows, cols=None):
     if cols is None:
-        cols = len(data) - rows
+        cols = len(data) - rows + 1
     X = np.empty((rows, cols))
     for k in range(rows):
         X[k, :] = data[k:cols + k]
@@ -274,6 +275,12 @@ def normalize(x):
     return x
 
 
+def normalize_l2(x):
+    x -= np.mean(x)
+    x /= np.linalg.norm(x)
+    return x
+
+
 def siavash(Xseries, N, shift):
 
     X = scipy.linalg.hankel(Xseries)[: N + shift, : -N - shift + 1]
@@ -294,3 +301,12 @@ def siavash(Xseries, N, shift):
     eigvecs = evecs[:, sort_order]
 
     return eigvecs, eigvals
+
+
+def read_lmc(file):
+    data = np.array(scipy.io.loadmat(f'./lmc/{file}')['DATAFILE'])
+    ress = data[:, ::2]
+    stims = data[:, 1::2]
+    ress = np.swapaxes(ress, 0, 1)
+    stims = np.swapaxes(stims, 0, 1)
+    return ress, stims
