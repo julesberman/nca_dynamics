@@ -6,6 +6,7 @@ import math
 from collections.abc import Iterable
 import scipy
 import scipy.io
+from scipy import signal
 
 
 def plot_3d(X, title="", size=(5, 12)):
@@ -110,6 +111,28 @@ def build_signal(N, f, spike_locations, noise=0, normalize=True, return_spikes=F
         return Y, spikes
 
     return Y
+
+
+def build_signal_grid(x, num, noise=0, a=[1, 1], lam=[1, 1], return_basis=False, center=False):
+    final_sig = np.zeros_like(x)
+    basis = []
+    for i in range(num):
+        c = random.choice(x)
+        sgn = rand_sgn()
+        sig = tanh(x, a=rand_float(a[0], a[1]), lam=rand_float(
+            lam[0], lam[1]), center=c)[::sgn]
+        final_sig += sig
+        if return_basis:
+            basis.append(sig)
+    final_sig += noise * np.random.normal(size=len(x), scale=1)
+
+    if center:
+        final_sig -= np.mean(final_sig)
+
+    if return_basis:
+        return final_sig, basis
+
+    return final_sig
 
 
 # FROM https://github.com/sethhirsh/sHAVOK/blob/master/Figure%201.ipynb
@@ -270,37 +293,16 @@ def plot_embed(data, Ns, hankel=False, sz=(20, 14), c=None, line=False, center=F
 
 
 def normalize(x):
-    x -= np.mean(x)
-    x /= np.max(np.abs(x))
-    return x
+    new = x.copy()
+    new -= np.mean(new)
+    new /= np.max(np.abs(new))
+    return new
 
 
 def normalize_l2(x):
     x -= np.mean(x)
     x /= np.linalg.norm(x)
     return x
-
-
-def siavash(Xseries, N, shift):
-
-    X = scipy.linalg.hankel(Xseries)[: N + shift, : -N - shift + 1]
-
-    X0 = X[:-shift]
-    Xp = X[shift:]
-
-    X0Xp = X0 @ Xp.T / X0.shape[1]
-    X0X0 = X0 @ X0.T / X0.shape[1]
-
-    GEV_sol = scipy.linalg.eig(X0Xp, X0X0)
-
-    evals = np.real_if_close(GEV_sol[0])
-    evecs = np.real_if_close(GEV_sol[1])
-
-    sort_order = np.argsort(evals)[::-1]
-    eigvals = evals[sort_order]
-    eigvecs = evecs[:, sort_order]
-
-    return eigvecs, eigvals
 
 
 def read_lmc(file):
@@ -310,3 +312,74 @@ def read_lmc(file):
     ress = np.swapaxes(ress, 0, 1)
     stims = np.swapaxes(stims, 0, 1)
     return ress, stims
+
+
+def cross_corr(x, y):
+    corr = signal.correlate(x, y)
+    lags = signal.correlation_lags(len(x), len(y))
+    return lags, corr
+
+
+def max_eig_project(sig, N, shift=1, norm=1):
+
+    # build Hankels for X, X_0 and X_+
+    X = build_hankel(sig, N)
+    X0 = X[:, :-shift]
+    Xp = X[:, shift:]
+
+    X0Xp = X0 @ Xp.T  # / X0.shape[1]
+    X0X0 = X0 @ X0.T  # / X0.shape[1]
+
+    # solve eigenvalue problem
+    evals, evecs = scipy.linalg.eig(
+        X0Xp, X0X0, overwrite_a=True, overwrite_b=True)
+
+    # get all real parts
+    evals = np.real(np.real_if_close(evals))
+    evecs = np.real(np.real_if_close(evecs))
+
+    # get largest eigenvector
+    largest_evec = evecs[:, np.nanargmax(evals)]
+
+    # multiple by sign of last component??
+    largest_evec *= np.sign(largest_evec[-1])
+
+    # project original series onto largest_evec
+    proj_series = largest_evec @ X
+
+    return proj_series, largest_evec
+
+
+# time window shifted
+def stride_eig(sig, window, dim, shift=1, stride=1, return_eigs=False):
+
+    N = len(sig)
+    y = np.zeros(N)
+
+    eigs = []
+    for i in range(0, N-window, stride):
+
+        sigwin = sig[i:i+window]
+        proj_series, evec = max_eig_project(sigwin, dim, shift=shift)
+        y[i:i+len(proj_series)] = proj_series  # evec @ sigwin[-dim:]
+        if return_eigs:
+            eigs.append(evec)
+
+    if return_eigs:
+        return y, np.array(eigs)
+    return y
+
+
+def low_rank_approx(A, r=1):
+    """
+    Computes an r-rank approximation of a matrix
+    given the component u, s, and v of it's SVD
+    Requires: numpy
+    """
+
+    u, s, v = np.linalg.svd(A, full_matrices=False)
+    Ar = u[:, :r] * s[:r] @ v[:r, :]
+    return Ar
+
+
+def mean_square_error(A, B): return np.square(np.subtract(A, B)).mean()
