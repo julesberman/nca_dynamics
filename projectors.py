@@ -1,6 +1,7 @@
 import numpy as np
 from tools import *
 import scipy
+import pydmd
 
 
 def ones_model(sig, y, dim, reg=0, normalize_output=True):
@@ -20,13 +21,14 @@ def ones_model(sig, y, dim, reg=0, normalize_output=True):
 def linear_model(sig, y, dim, reg=0, normalize_output=True):
 
     pad_sig = np.concatenate([np.zeros(dim - 1), sig])
-    X = build_hankel(pad_sig, dim)
+    X = build_hankel(pad_sig, dim).T
 
     lam = reg**2 * np.eye(dim)
 
     # Get the MLE weights for the LG model
-    theta = np.linalg.inv((X @ X.T) + lam) @ X @ y
-    y_lin = theta @ X
+    theta = np.linalg.inv((X.T @ X) + lam) @ X.T @ y
+
+    y_lin = X @ theta
 
     if normalize_output:
         y_lin = normalize(y_lin)
@@ -37,17 +39,20 @@ def linear_model(sig, y, dim, reg=0, normalize_output=True):
 def eigen_proj(sig, y, dim, reg=0, shift=1, normalize_output=True):
 
     pad_sig = np.concatenate([np.zeros(dim - 1), sig])
-    X = build_hankel(pad_sig, dim)
-    X0 = X[:, :-shift].T
-    Xp = X[:, shift:].T
+    X = build_hankel(pad_sig, dim).T
+    X0 = X[:-shift]
+    Xp = X[shift:]
 
-    # regularize
-    X0 = np.concatenate([X0, reg**2*np.eye(dim)])
-    Xp = np.concatenate([Xp, np.zeros((dim, dim))])
+    lam = reg**2 * np.eye(dim)
 
-    A, _, _, _ = scipy.linalg.lstsq(X0, Xp)
+    # Get the MLE weights for the LG model
+    A = np.linalg.inv((X0.T @ X0) + lam) @ X0.T @ Xp
 
-    # A_red = low_rank_approx(A, r=r_dim)
+    # # regularize
+    # X0 = np.concatenate([X0, reg**2*np.eye(dim)])
+    # Xp = np.concatenate([Xp, np.zeros((dim, dim))])
+
+    # A, _, _, _ = scipy.linalg.lstsq(X0, Xp)
 
     evals, evecs = scipy.linalg.eig(A, left=False, right=True)
 
@@ -62,7 +67,7 @@ def eigen_proj(sig, y, dim, reg=0, shift=1, normalize_output=True):
     largest_evec *= np.sign(largest_evec[-1])
 
     # project original series onto largest_evec
-    proj_series = largest_evec @ X
+    proj_series = X @ largest_evec
 
     if normalize_output:
         proj_series = normalize(proj_series)
@@ -76,10 +81,6 @@ def eigen_proj_low_rank(sig, y, dim, reg=0, shift=1, normalize_output=True):
     X = build_hankel(pad_sig, dim)
     X0 = X[:, :-shift].T
     Xp = X[:, shift:].T
-
-    # regularize
-    X0 = np.concatenate([X0, reg**2*np.eye(dim)])
-    Xp = np.concatenate([Xp, np.zeros((dim, dim))])
 
     A, _, _, _ = scipy.linalg.lstsq(X0, Xp)
 
@@ -128,3 +129,39 @@ def eigen_time_proj(sig, y, dim, window=None, reg=0, shift=1, stride=1, normaliz
         y = normalize(y)
 
     return y, np.mean(np.array(eigs), axis=0)
+
+
+def DMD_project(sig, y, dim, reg=0, shift=1, normalize_output=True):
+
+    pad_sig = np.concatenate([np.zeros(dim - 1), sig])
+    X = build_hankel(pad_sig, dim)
+    X0 = X[:, :-shift]
+    Xp = X[:, shift:]
+
+    r = reg
+    u, s, v = np.linalg.svd(X0, full_matrices=False)
+    u, s, v = u[:, :r], s[:r], v[:r, :]
+
+    s_inv = np.diag(1/s)
+
+    A = u.conj().T @ Xp @ v.conj().T @ s_inv
+
+    evals, evecs = scipy.linalg.eig(A, left=True, right=False)
+
+    # get all real parts
+    evals = np.real(np.real_if_close(evals))
+    evecs = np.real(np.real_if_close(evecs))
+
+    # get largest eigenvector
+    largest_evec = evecs[:, np.nanargmax(evals)]
+
+    # multiple by sign of last component??
+    largest_evec *= np.sign(largest_evec[-1])
+
+    # project original series onto largest_evec
+    proj_series = np.convolve(sig, largest_evec)
+
+    if normalize_output:
+        proj_series = normalize(proj_series)
+
+    return proj_series, largest_evec
