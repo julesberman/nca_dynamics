@@ -296,6 +296,7 @@ def normalize(x):
     new = x.copy()
     new -= np.mean(new)
     new /= np.max(np.abs(new))
+    new -= np.mean(new)
     return new
 
 

@@ -1,7 +1,6 @@
 import numpy as np
 from tools import *
 import scipy
-import pydmd
 
 
 def ones_model(sig, y, dim, reg=0, normalize_output=True):
@@ -63,8 +62,8 @@ def eigen_proj(sig, y, dim, reg=0, shift=1, normalize_output=True):
     # get largest eigenvector
     largest_evec = evecs[:, np.nanargmax(evals)]
 
-    # multiple by sign of last component??
-    largest_evec *= np.sign(largest_evec[-1])
+    # # multiple by sign of last component??
+    # largest_evec *= np.sign(largest_evec[-1])
 
     # project original series onto largest_evec
     proj_series = X @ largest_evec
@@ -82,7 +81,10 @@ def eigen_proj_low_rank(sig, y, dim, reg=0, shift=1, normalize_output=True):
     X0 = X[:, :-shift].T
     Xp = X[:, shift:].T
 
-    A, _, _, _ = scipy.linalg.lstsq(X0, Xp)
+    lam = 15**2 * np.eye(dim)
+
+    # Get the MLE weights for the LG model
+    A = np.linalg.inv((X0.T @ X0) + lam) @ X0.T @ Xp
 
     reg = int(reg)
     if reg > 0:
