@@ -7,6 +7,29 @@ from collections.abc import Iterable
 import scipy
 import scipy.io
 from scipy import signal
+import seaborn as sns
+
+
+def set_seaborn():
+    sns.set()
+    sns.color_palette("tab10")
+    FIG_SIZE = (14, 8)
+
+    color_list = sns.color_palette("tab10")
+
+    sns.set_theme(rc={'axes.prop_cycle': plt.cycler(color=color_list),
+                      'lines.linewidth': 1.6,
+                      'lines.markersize': 10,
+                      'font.family': 'Arial',
+                      'font.size': 16,
+                      'axes.titlecolor': 'black',
+                      'axes.titleweight': 'bold',
+                      'axes.labelcolor': 'black',
+                      'legend.facecolor': 'white',
+                      'legend.edgecolor': 'black',
+                      'figure.dpi': 100,
+                      'figure.figsize': FIG_SIZE
+                      })
 
 
 def plot_3d(X, title="", size=(5, 12)):
@@ -138,7 +161,7 @@ def build_signal_grid(x, num, noise=0, a=[1, 1], lam=[1, 1], return_basis=False,
 # FROM https://github.com/sethhirsh/sHAVOK/blob/master/Figure%201.ipynb
 def build_hankel(data, rows, cols=None):
     if cols is None:
-        cols = len(data) - rows + 1
+        cols = len(data) - rows
     X = np.empty((rows, cols))
     for k in range(rows):
         X[k, :] = data[k:cols + k]
@@ -306,12 +329,17 @@ def normalize_l2(x):
     return x
 
 
-def read_lmc(file):
+def read_lmc(file, pre_process=False, downsample=10):
     data = np.array(scipy.io.loadmat(f'./lmc/{file}')['DATAFILE'])
     ress = data[:, ::2]
     stims = data[:, 1::2]
     ress = np.swapaxes(ress, 0, 1)
     stims = np.swapaxes(stims, 0, 1)
+
+    if pre_process:
+        ress = normalize(np.mean(ress[:, ::downsample], axis=0))
+        stims = normalize(np.mean(stims[:, ::downsample], axis=0))
+
     return ress, stims
 
 
