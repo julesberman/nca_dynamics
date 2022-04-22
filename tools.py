@@ -315,12 +315,31 @@ def plot_embed(data, Ns, hankel=False, sz=(20, 14), c=None, line=False, center=F
     plt.show()
 
 
-def normalize(x):
-    new = x.copy()
-    new -= np.mean(new)
-    new /= np.max(np.abs(new))
-    new -= np.mean(new)
-    return new
+def make_histogram(data, bins=20, title='', xlabel='', ylabel='Counts', logscale=False):
+
+    bins = np.linspace(math.ceil(min(data)),
+                       math.floor(max(data)),
+                       bins)  # fixed number of bins
+
+    plt.xlim([min(data)-5, max(data)+5])
+
+    plt.hist(data, bins=bins, alpha=0.5)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+    if logscale:
+        plt.yscale('log', nonposy='clip')
+
+    plt.show()
+
+
+def normalize(timeseries):
+    # new = x.copy()
+    # new -= np.mean(new)
+    # new /= np.max(np.abs(new))
+    # return new
+    return (timeseries-timeseries.min())/(timeseries.max()-timeseries.min())
 
 
 def normalize_l2(x):
@@ -329,16 +348,12 @@ def normalize_l2(x):
     return x
 
 
-def read_lmc(file, pre_process=False, downsample=10):
+def read_lmc(file):
     data = np.array(scipy.io.loadmat(f'./lmc/{file}')['DATAFILE'])
     ress = data[:, ::2]
     stims = data[:, 1::2]
     ress = np.swapaxes(ress, 0, 1)
     stims = np.swapaxes(stims, 0, 1)
-
-    if pre_process:
-        ress = normalize(np.mean(ress[:, ::downsample], axis=0))
-        stims = normalize(np.mean(stims[:, ::downsample], axis=0))
 
     return ress, stims
 
