@@ -10,28 +10,6 @@ from scipy import signal
 import seaborn as sns
 
 
-def set_seaborn():
-    sns.set()
-    sns.color_palette("tab10")
-    FIG_SIZE = (14, 8)
-
-    color_list = sns.color_palette("tab10")
-
-    sns.set_theme(rc={'axes.prop_cycle': plt.cycler(color=color_list),
-                      'lines.linewidth': 1.6,
-                      'lines.markersize': 10,
-                      'font.family': 'Arial',
-                      'font.size': 16,
-                      'axes.titlecolor': 'black',
-                      'axes.titleweight': 'bold',
-                      'axes.labelcolor': 'black',
-                      'legend.facecolor': 'white',
-                      'legend.edgecolor': 'black',
-                      'figure.dpi': 100,
-                      'figure.figsize': FIG_SIZE
-                      })
-
-
 def plot_3d(X, title="", size=(5, 12)):
     fig = plt.figure()
     fig.set_size_inches(*size)
