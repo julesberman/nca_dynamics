@@ -20,12 +20,21 @@ class Results:
     def get_test_errs(self):
         return self.get_mean_and_stds(self.test_errors, axis=1)
 
+    def get_opt_test_err(self):
+        err, stds = self.get_test_errs()
+        opt_i = self.get_opt_beta_i()
+        return err[opt_i], stds[opt_i]
+
     def get_opt_beta_i(self):
         opt_i = np.argmin(np.mean(self.train_errors, axis=1))
         return opt_i
 
-    def get_opt_beta(self):
-        opt_i = np.argmin(np.mean(self.train_errors, axis=1))
+    def get_opt_beta(self, opt_set='train'):
+        if opt_set == 'train':
+            errs = self.train_errors
+        if opt_set == 'test':
+            errs = self.test_errors
+        opt_i = np.argmin(np.mean(errs, axis=1))
         return self.betas[opt_i]
 
     def get_filter_for_beta(self, beta):
@@ -75,8 +84,8 @@ class Results:
             vr = np.flip(vr.T, axis=0)
             # orient
             for i in range(len(w)):
-                vl[i] *= vl[i, -1] * -1
-                vr[i] *= vr[i, -1] * -1
+                vl[i] *= vl[i, -1]
+                vr[i] *= vr[i, -1]
 
             Ws.append(w)
             VLs.append(vl)

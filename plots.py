@@ -73,13 +73,12 @@ def plot_beta_errs(results, train=True, test=True, plot_opt=True, plot_errs=True
         plt.show()
 
 
-def plot_params(result):
-    params = result.get_params()
+def plot_params(params, title=''):
     for i, p in enumerate(params):
         if type(p[0][0]) is not np.ndarray:
             dist = p.flatten()
             plt.hist(dist, bins=len(dist)//100)
-            plt.title(f'{result.name} Param {i}')
+            plt.title(f'{title} Param {i}')
             plt.show()
 
 
