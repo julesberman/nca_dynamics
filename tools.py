@@ -1,3 +1,4 @@
+import types
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -7,7 +8,9 @@ from collections.abc import Iterable
 import scipy
 import scipy.io
 from scipy import signal
-import seaborn as sns
+import itertools
+import pandas as pd
+from sympy import re
 
 
 def plot_3d(X, title="", size=(5, 12)):
@@ -114,18 +117,17 @@ def build_signal(N, f, spike_locations, noise=0, normalize=True, return_spikes=F
     return Y
 
 
-def build_signal_grid(x, num, noise=0, a=[1, 1], lam=[1, 1], return_basis=False, center=False):
+def build_signal_grid(x, noise=0, a_s=[1], l_s=[1], c_s=[0], s_s=[1], return_basis=False, center=False):
     final_sig = np.zeros_like(x)
     basis = []
+    num = len(a_s)
     for i in range(num):
-        c = random.choice(x)
-        sgn = rand_sgn()
-        sig = tanh(x, a=rand_float(a[0], a[1]), lam=rand_float(
-            lam[0], lam[1]), center=c)[::sgn]
+        a, l, c, s = a_s[i], l_s[i], c_s[i], int(s_s[i])
+        sig = tanh(x, a=a, lam=l, center=c)[::s]
+        sig += (noise * np.random.randn(len(sig)))
         final_sig += sig
         if return_basis:
             basis.append(sig)
-    final_sig += noise * np.random.normal(size=len(x), scale=1)
 
     if center:
         final_sig -= np.mean(final_sig)
@@ -225,6 +227,37 @@ def tanh(t, a=1, lam=1, center=0):
     return a/(1+np.exp(lam*-(t+center)))
 
 
+def factor_int_close_to_square(n):
+    d = math.ceil(math.sqrt(n))
+    opt = math.inf
+    opt_o = (0, 0)
+    off = [(0, 0), (0, -1), (-1, 1), (-2, 1), (-2, 0)]
+    for (l, r) in off:
+        extra = ((d+l)*(d+r)) - n
+        if extra < opt and extra >= 0:
+            opt = extra
+            opt_o = (l, r)
+    ans = [d+opt_o[0], d+opt_o[1]]
+    ans.sort()
+    return tuple(ans)
+
+
+def make_subplt_arr(d1, d2=None):
+    if d2 is None:
+        d1, d2 = factor_int_close_to_square(d1)
+    fig, axarr = plt.subplots(d1, d2)
+
+    if isinstance(axarr, Iterable):
+        if isinstance(axarr[0], Iterable):
+            axs1 = [item for sublist in axarr for item in sublist]
+        else:
+            axs1 = axarr
+    else:
+        axs1 = [axarr]
+
+    return fig, axs1
+
+
 def plot_embed(data, Ns, hankel=False, sz=(20, 14), c=None, line=False, center=False, square_plot=False):
 
     num_sl = len(Ns)
@@ -291,6 +324,40 @@ def plot_embed(data, Ns, hankel=False, sz=(20, 14), c=None, line=False, center=F
         fig.colorbar(scatter)
 
     plt.show()
+
+
+def lorentz(T=20, h=0.01):
+    def init_XYZ(m):
+        X = np.zeros(m)
+        Y = np.zeros(m)
+        Z = np.zeros(m)
+        X[0] = -5.91652
+        Y[0] = -5.52332
+        Z[0] = 24.57231
+        return (X, Y, Z)
+
+    m = int(T/h)
+    (X, Y, Z) = init_XYZ(m)
+
+    for k in range(0, m-1):
+        X[k+1] = X[k] + h*10*(Y[k]-X[k])
+        Y[k+1] = Y[k] + h*((X[k]*(28-Z[k]))-Y[k])
+        Z[k+1] = Z[k] + h*(X[k]*Y[k]-8*Z[k]/3)
+
+    return np.array([X, Y, Z])
+
+
+def lorentz_signal(T=20, h=0.01, noise=0.0):
+    L = lorentz(T, h)
+
+    obs_x = L[0, :]
+    obs_y = L[1, :]
+    obs_z = L[2, :]
+
+    X = obs_x
+    X = X + (noise * np.random.randn(len(X)))
+
+    return X
 
 
 def make_histogram(data, bins=20, title='', xlabel='', ylabel='Counts', logscale=False):
@@ -405,3 +472,155 @@ def low_rank_approx(A, r=1):
 
 
 def mean_square_error(A, B): return np.square(np.subtract(A, B)).mean()
+
+
+def exp_f(x, e, a): return a*np.exp(x*e)
+
+
+def build_exp_series(a_s, e_s, noise=0.0, time=np.arange(0, 3, 0.1)):
+    components = []
+    X = np.zeros_like(time)
+    for i in range(len(e_s)):
+        c = exp_f(time, e_s[i], a_s[i]) + (noise * np.random.randn(len(X)))
+        c = c.real
+        X += c
+        components.append(c)
+
+    y_i = np.argmax(e_s.real)
+    Y = components[y_i]
+
+    return X, Y, time, components
+
+
+def arr_if_scalar(e):
+    if isinstance(e, Iterable) and type(e) is not str:
+        return e
+    else:
+        return [e]
+
+
+def param_runner(f_run, param_dict):
+
+    rows = []
+    # get the names and values of all parameters
+    p_names, p_values = param_dict.keys(), param_dict.values()
+
+    # turn each value into a tuple with its index
+    p_values = [[(i, v) for i, v in enumerate(p_v)] for p_v in p_values]
+
+    # get cartesian product of all params ie p_sets = [ ((0,p1[0]),(0,p2[0])... ), ((1,p1[1]),(0,p2[0]) ... )...]
+    p_sets = itertools.product(*p_values)
+
+    bad_types = [np.ndarray, types.FunctionType, tuple]
+
+    # iterate through params and record results into param indexed matrix
+    for p_set in list(p_sets):
+        kw_args = {n: v[1] for n, v in zip(p_names, p_set)}
+        result = f_run(**kw_args)
+        # convert numpy params to strings
+        kw_args = {k: str(v) if type(
+            v) in bad_types else v for k, v in kw_args.items()}
+        row = {**kw_args, **result}
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def plot_dataframe(df, y_cols, x_col=None, line_cols=[], title_cols=[], aggregate='error', val_styles='', fix_yim=False, legend=True, ax_size=(8, 6), show=True):
+    """ Add two arguments
+    Arguments:
+        title_cols: groups data into unique combinations of each title col, each combo the becomes one subplot
+        line_cols: groups each title_col into unique combinations of each line colm, each combo the becomes one line on a subplot
+        y_cols: the key(s) in the dataframe which contain the series to be plotted, if multiple are given then each is plotted seperatly
+        x_col: the key which will be used as x series for all y_cols
+        fix_yim: whether to use the same ylim on all of the subplots, calculated via min max for all lines
+        ax_size: size of each subplot - (X, Y)
+        val_styles: styles passed along the plt.plot corresponding to each y_col
+        aggregate: after grouping by title/line, there may still be multiple rows for each unique combination
+                   we produce a single series from each set of rows via this aggreatition method
+        show: whether to call plt.show() at the end 
+    """
+
+    # set up
+    y_cols = arr_if_scalar(y_cols)
+    val_styles = arr_if_scalar(val_styles) * len(y_cols)
+
+    # helper function to deal with empty array grouping and to auto make labels
+    def group_by(dataframe, cols):
+        if len(cols) > 0:
+            grouped = dataframe.groupby(cols)
+            for (vals, group) in grouped:
+                vals = arr_if_scalar(vals)
+                # build label by group vals
+                label = ', '.join([f'{k}={v}' for k, v in zip(cols, vals)])
+                yield label, group
+        else:
+            yield '', dataframe
+
+    # makes first title col vary by row
+    d1, d2 = 1, 1
+    for i, t in enumerate(title_cols):
+        n = len(pd.unique(df[t]))
+        if i == 0:
+            d1 *= n
+        else:
+            d2 *= n
+    fig, axarr = make_subplt_arr(d1, d2)
+    fig.set_size_inches(d2*ax_size[0], d1*ax_size[1])
+
+    # set super title
+    val_col_str = ' & '.join(y_cols)
+    fig.suptitle(val_col_str, weight='bold', size='xx-large', y=0.94)
+
+    mins, maxs = [], []
+    for i, (title_str, title_group) in enumerate(group_by(df, title_cols)):
+
+        ax = axarr[i]
+        ax.set_title(f'{title_str}')
+
+        for j, val_col in enumerate(y_cols):
+
+            for (label_str, line_group) in group_by(title_group, line_cols):
+
+                # get ys
+                ys = []
+                for i, r in line_group.iterrows():
+                    ys.append(r.get(val_col))
+
+                # get x
+                if x_col is None:
+                    x = np.arange(len(ys[0]))  # set x based on size val_col
+                else:
+                    x = line_group.iloc[0][x_col]
+                    ax.set_xlabel(x_col)
+
+                # compute errs
+                if aggregate == 'error':
+                    y, e = np.mean(ys, axis=0), np.std(ys, axis=0)
+                    ax.fill_between(x, y-e, y+e, alpha=0.20)
+                    maxs.append(max(y+e))
+                    mins.append(min(y-e))
+
+                elif aggregate == 'last':
+                    # take last
+                    y = ys[-1]
+
+                mins.append(min(y))
+                maxs.append(max(y))
+
+                if len(y_cols) > 1:
+                    label_str = f'{label_str} {val_col}'
+
+                ax.plot(x, y, label=label_str, *val_styles[j])
+
+            if legend and len(line_cols) != 0:
+                ax.legend()
+
+    if fix_yim:
+        [ax.set_ylim([min(mins), max(maxs)]) for ax in axarr]
+
+    if show:
+        plt.show()
+
+    else:
+        return fig, axarr

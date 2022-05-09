@@ -1,4 +1,3 @@
-from cProfile import label
 import scipy
 import numpy as np
 from fitters import *
@@ -11,7 +10,7 @@ import seaborn as sns
 def set_seaborn():
     sns.set()
     sns.color_palette("tab10")
-    FIG_SIZE = (14, 8)
+    FIG_SIZE = (12, 6)
 
     color_list = sns.color_palette("tab10")
 
@@ -26,7 +25,7 @@ def set_seaborn():
                       'legend.facecolor': 'white',
                       'legend.edgecolor': 'black',
                       'figure.dpi': 80,
-                      'figure.figsize': FIG_SIZE,
+                      #   'figure.figsize': FIG_SIZE,
                       })
 
 

@@ -43,6 +43,7 @@ class LinearModel:
 
         # matrix for regularization
         lam = beta * np.eye(dim + 1)
+        lam[-1, -1] = 0
 
         # solve the least square problem
         theta = (y @ Xb.T) @ np.linalg.inv((Xb @ Xb.T) + lam)
@@ -63,29 +64,20 @@ class EigenModel:
     def __init__(self, name=''):
         self.name = name
 
-    def train(self, X, y, dim, beta=0, shift=1, c_shift=False):
+    def train(self, X, y, dim, beta=0, shift=1):
 
         X0 = X[:, :-shift]
         Xp = X[:, shift:]
 
-        # add ones for bias term
-        reg_dim = dim
-        if c_shift:
-            X0 = np.vstack((X0, np.ones(X0.shape[1])))
-            reg_dim += 1
-
         # matrix for regularization
-        lam = beta * np.eye(reg_dim)
+        lam = beta * np.eye(dim)
+        # lam[-1, -1] = 0
 
-        # solve the least square problem
-        A = (Xp @ X0.T) @ np.linalg.inv((X0 @ X0.T) + lam)
-
-        if c_shift:
-            A, c = A[:, :-1], A[:, -1:]
-        else:
-            c = 0
-
-        evals, evecs = scipy.linalg.eig(A, left=True, right=False)
+        X0Xp = X0 @ Xp.T
+        X0X0 = X0 @ X0.T
+        # solve eigenvalue problem
+        evals, evecs = scipy.linalg.eig(
+            X0Xp, (X0X0+lam), overwrite_a=True, overwrite_b=True)
 
         # get all real parts
         evals = np.real(np.real_if_close(evals))
@@ -98,20 +90,20 @@ class EigenModel:
         y_hat = theta @ X
 
         # solve for scale and bias
-        y_hat = np.vstack((y_hat, np.ones(len(y_hat))))
-        ab = (y @ y_hat.T) @ np.linalg.inv((y_hat @ y_hat.T))
+        y_hat_1 = np.vstack((y_hat, np.ones(len(y_hat))))
+        ab = (y @ y_hat_1.T) @ np.linalg.inv((y_hat_1 @ y_hat_1.T))
         a, b = ab[0], ab[1]
 
-        # pass a into theta so filter is scaled correctly
+        # # pass a into theta so filter is scaled correctly
         theta = theta * a
 
         # final prediction
-        pred = theta @ X + b
+        pred = y_hat*a + b
 
-        return pred, theta, (a, b, c, A)
+        return pred, theta, (a, b)
 
     def test(self, X, theta, params):
-        a, b, c, A = params
+        a, b = params
         return theta @ X + b
 
 
@@ -168,7 +160,7 @@ class SingleCEigenModel:
 
 
 class DMDModel:
-    def __init__(self, name='', exact=True):
+    def __init__(self, name='', exact=False):
         self.name = name
         self.exact = exact
 
@@ -178,6 +170,8 @@ class DMDModel:
         Xp = X[:, shift:]
 
         r = int(beta)
+        # if r % 2 == 1:
+        #     r += 1
         if r == 0:
             r = 1
 
@@ -219,8 +213,8 @@ class DMDModel:
         # final prediction
         pred = theta @ X + b
 
-        return pred, theta, (a, b)
+        return pred, theta, (a, b, A)
 
     def test(self, X, theta, params):
-        a, b, = params
+        a, b, A = params
         return theta @ X + b
