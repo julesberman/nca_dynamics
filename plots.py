@@ -7,28 +7,6 @@ from matplotlib.pyplot import figure
 import seaborn as sns
 
 
-def set_seaborn():
-    sns.set()
-    sns.color_palette("tab10")
-    FIG_SIZE = (12, 6)
-
-    color_list = sns.color_palette("tab10")
-
-    sns.set_theme(rc={'axes.prop_cycle': plt.cycler(color=color_list),
-                      'lines.linewidth': 1.6,
-                      'lines.markersize': 10,
-                      'font.family': 'Arial',
-                      'font.size': 16,
-                      'axes.titlecolor': 'black',
-                      'axes.titleweight': 'bold',
-                      'axes.labelcolor': 'black',
-                      'legend.facecolor': 'white',
-                      'legend.edgecolor': 'black',
-                      'figure.dpi': 80,
-                      #   'figure.figsize': FIG_SIZE,
-                      })
-
-
 def plt_errors(x, y, e, *args, **kwargs):
     plt.plot(x, y, *args, **kwargs)
     plt.fill_between(x, y-e, y+e, alpha=0.2)
@@ -84,7 +62,7 @@ def plot_params(params, title=''):
 def plot_filter(filter_mean_std, beta, title=''):
     figure(figsize=(8, 8))
     d = len(filter_mean_std[0])
-    plt_errors(np.linspace(0, d, d), *filter_mean_std)
+    plt_errors(np.linspace(0, d, d), *filter_mean_std, '.-')
     plt.title(f'{title} Filter for beta={round(beta,3)}')
     plt.show()
 
@@ -92,16 +70,16 @@ def plot_filter(filter_mean_std, beta, title=''):
 def plot_spectrum(avg_spectrum, title=''):
     w, vl, vr = avg_spectrum
     d_ran = np.arange(0, len(w[0]), 1)
-    plt_errors(d_ran, *w)
+    plt_errors(d_ran, *w, '.-')
     plt.title('Eigenvalues of A')
     plt.show()
-    plot_eigs(d_ran, vl[0], stds=vl[1],
+    plot_eigs(vl[0], stds=vl[1],
               title=f'{title} Left Eig Vec of A')
-    plot_eigs(d_ran, vr[0], stds=vr[1],
+    plot_eigs(vr[0], stds=vr[1],
               title=f'{title} Right Eig Vec of A')
 
 
-def plot_eigs(x, eigs, stds=None, title='', num=None):
+def plot_eigs(eigs, x=None, stds=None, title='', num=None):
     if num is not None:
         eigs = eigs[:num]
     num = len(eigs)
@@ -112,10 +90,12 @@ def plot_eigs(x, eigs, stds=None, title='', num=None):
     axs1 = [item for sublist in axarr for item in sublist]
     ylims = [np.min(eigs), np.max(eigs)]
     for i, e in list(enumerate(eigs)):
+        if x is None:
+            x = np.arange(0, len(e))
         if stds is not None:
             axs1[i].errorbar(x, e, stds[i])
         else:
-            axs1[i].plot(x, e)
+            axs1[i].plot(x, e, '.-')
         axs1[i].set_ylim(ylims)
 
     plt.show()

@@ -209,7 +209,7 @@ def sia_eig_project(X_hankel, y, dim, reg=0, shift=1,  normalize_output=True):
     return proj_series, largest_evec
 
 
-def sia_eig_project_transpose(X_hankel, y, dim, reg=0, shift=1,  normalize_output=True):
+def eig_project(X_hankel, y, dim, beta=0, shift=1):
 
     X = X_hankel
     X0 = X[:, :-shift]
@@ -219,12 +219,11 @@ def sia_eig_project_transpose(X_hankel, y, dim, reg=0, shift=1,  normalize_outpu
     X0X0 = X0 @ X0.T  # / X0.shape[1]
 
     # regularize
-    lam = reg * np.eye(dim)
+    lam = beta * np.eye(dim)
     X0X0 += lam
 
     # solve eigenvalue problem
-    evals, evecs = scipy.linalg.eig(
-        X0Xp, X0X0, overwrite_a=True, overwrite_b=True, left=True, right=False)
+    evals, evecs = scipy.linalg.eig(X0Xp, X0X0)
 
     # get all real parts
     evals = np.real(np.real_if_close(evals))
@@ -241,33 +240,95 @@ def sia_eig_project_transpose(X_hankel, y, dim, reg=0, shift=1,  normalize_outpu
     # project original series onto largest_evec
     proj_series = largest_evec @ X
 
-    return proj_series, largest_evec
+    return proj_series, largest_evec,
 
 
-def eigen_proj_transpose(X, y, dim, reg=0, shift=1):
+def eig_companion(X_series, dim, beta=0):
 
-    X0 = X[:, :-shift]
-    Xp = X[:, shift:]
+    Xhan = build_hankel(X_series, dim)
+    X0 = Xhan[:, :-1]
+    Xp = Xhan[:, 1:]
+    Xp = Xp[-1]
+    lam = beta * np.eye(dim)
 
-    lam = reg * np.eye(dim)
+    a = (Xp @ X0.T) @ np.linalg.inv((X0 @ X0.T) + lam)
+    A = np.eye(dim, k=1)
+    A[-1] = a
+    w, vl = scipy.linalg.eig(A, left=True, right=False)
 
-    # Get the MLE weights for the LG model
-    A = (Xp @ X0.T) @ np.linalg.inv((X0 @ X0.T) + lam)
+    sortorder = np.argsort(np.abs(w))
+    thetas = vl[:, sortorder][:, ::-1]
+    w = w[sortorder][::-1]
+    theta = thetas[:, 0]
+    theta /= theta[-1]
 
-    evals, evecs = scipy.linalg.eig(A, left=False, right=True)
+    P_series = theta.real @ Xhan
 
-    # get all real parts
-    evals = np.real(np.real_if_close(evals))
-    evecs = np.real(np.real_if_close(evecs))
+    return P_series, theta, A
 
-    # get largest eigenvector
-    largest_evec = evecs[:, np.nanargmax(evals)]
 
-    # orient eigenvectors same way
-    largest_evec = np.flip(largest_evec)
-    largest_evec = pick_eigvec_sig(largest_evec, X, y)
+def eig_companion_Cshift(X_series, dim, beta=0):
 
-    # project original series onto largest_evec
-    proj_series = largest_evec @ X
+    Xhan = build_hankel(X_series, dim)
+    X0 = Xhan[:, :-1]
+    Xp = Xhan[:, 1:]
+    Xp = Xp[-1]
+    X0 = np.vstack((X0, np.ones(X0.shape[1])))
+    reg_dim = dim + 1
+    lam = beta * np.eye(reg_dim)
+    if beta == 0:
+        a = scipy.linalg.lstsq(X0.T, Xp)[0]
+    else:
+        a = (Xp @ X0.T) @ np.linalg.inv((X0 @ X0.T) + lam)
 
-    return proj_series, largest_evec
+    a, c = a[:-1], a[-1:]
+    A = np.eye(dim, k=1)
+    A[-1] = a
+
+    w, vl = scipy.linalg.eig(A, left=True, right=False)
+
+    sortorder = np.argsort(np.abs(w))
+    thetas = vl[:, sortorder][:, ::-1]
+    w = w[sortorder][::-1]
+    theta = thetas[:, 0]
+    theta /= theta[-1]
+
+    P_series = theta.real @ Xhan
+
+    return P_series, theta, A, c
+
+
+def general_eig(X_series, dim, beta=0):
+
+    Xhan = build_hankel(X_series, dim)
+    X0 = Xhan[:, :-1]
+    Xp = Xhan[:, 1:]
+
+    X0Xp = X0 @ Xp.T  # / X0.shape[1]
+    X0X0 = X0 @ X0.T  # / X0.shape[1]
+
+    # regularize
+    lam = beta * np.eye(dim)
+    X0X0 += lam
+
+    # solve eigenvalue problem
+    w, vl = scipy.linalg.eig(X0Xp, X0X0)
+
+    sortorder = np.argsort(w.real)
+    thetas = vl[:, sortorder][:, ::-1]
+    w = w[sortorder][::-1]
+    theta = thetas[:, 0]
+    theta /= theta[-1]
+
+    P_series = theta.real @ Xhan
+
+    return P_series, theta, w, vl
+
+
+def solve_scale_shift(P_series, Y_series):
+    P_series_1 = np.vstack((P_series, np.ones(len(P_series))))
+    ab = (Y_series @ P_series_1.T) @ np.linalg.inv((P_series_1 @ P_series_1.T))
+    a, b = ab[0], ab[1]
+    P_series = P_series*a+b
+
+    return P_series

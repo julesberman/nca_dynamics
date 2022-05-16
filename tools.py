@@ -1,4 +1,5 @@
 import types
+from cv2 import phase
 import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -10,7 +11,25 @@ import scipy.io
 from scipy import signal
 import itertools
 import pandas as pd
-from sympy import re
+import seaborn as sns
+
+
+def set_seaborn(params={}):
+    sns.set()
+    sns.color_palette("mako")
+
+    sns.set_theme(rc={'lines.linewidth': 1.6,
+                      'lines.markersize': 10,
+                      'font.family': 'Arial',
+                      'font.size': 18,
+                      'axes.titlecolor': 'black',
+                      'axes.titleweight': 'bold',
+                      'axes.labelcolor': 'black',
+                      'legend.facecolor': 'white',
+                      'legend.edgecolor': 'black',
+                      'figure.dpi': 80,
+                      **params
+                      })
 
 
 def plot_3d(X, title="", size=(5, 12)):
@@ -474,6 +493,9 @@ def low_rank_approx(A, r=1):
 def mean_square_error(A, B): return np.square(np.subtract(A, B)).mean()
 
 
+def mean_square_error(A, B): return np.square(np.subtract(A, B)).mean()
+
+
 def exp_f(x, e, a): return a*np.exp(x*e)
 
 
@@ -570,7 +592,13 @@ def plot_dataframe(df, y_cols, x_col=None, line_cols=[], title_cols=[], aggregat
 
     # set super title
     val_col_str = ' & '.join(y_cols)
-    fig.suptitle(val_col_str, weight='bold', size='xx-large', y=0.94)
+    size = 'xx-large'
+    if len(axarr) < 5:
+        size = 'x-large'
+    if len(axarr) == 1:
+        size = 'medium'
+
+    fig.suptitle(val_col_str, weight='bold', size=size, y=0.94)
 
     mins, maxs = [], []
     for i, (title_str, title_group) in enumerate(group_by(df, title_cols)):
@@ -589,7 +617,11 @@ def plot_dataframe(df, y_cols, x_col=None, line_cols=[], title_cols=[], aggregat
 
                 # get x
                 if x_col is None:
-                    x = np.arange(len(ys[0]))  # set x based on size val_col
+                    if aggregate == 'plot':
+                        x = np.arange(len(ys))
+                    else:
+                        # set x based on size val_col
+                        x = np.arange(len(ys[0]))
                 else:
                     x = line_group.iloc[0][x_col]
                     ax.set_xlabel(x_col)
@@ -598,15 +630,17 @@ def plot_dataframe(df, y_cols, x_col=None, line_cols=[], title_cols=[], aggregat
                 if aggregate == 'error':
                     y, e = np.mean(ys, axis=0), np.std(ys, axis=0)
                     ax.fill_between(x, y-e, y+e, alpha=0.20)
-                    maxs.append(max(y+e))
-                    mins.append(min(y-e))
+                    maxs.append(np.max(y+e))
+                    mins.append(np.min(y-e))
 
                 elif aggregate == 'last':
                     # take last
                     y = ys[-1]
+                elif aggregate == 'plot':
+                    y = ys
 
-                mins.append(min(y))
-                maxs.append(max(y))
+                mins.append(np.min(y))
+                maxs.append(np.max(y))
 
                 if len(y_cols) > 1:
                     label_str = f'{label_str} {val_col}'
@@ -624,3 +658,49 @@ def plot_dataframe(df, y_cols, x_col=None, line_cols=[], title_cols=[], aggregat
 
     else:
         return fig, axarr
+
+
+def preprocess(signal, factor=1, method='mean'):
+    # take mean of all trials
+    mean = np.mean(signal, axis=0)
+    # down samples mean of trials
+    n = len(mean) // factor
+    if method == 'nth':
+        down = mean[::factor]
+    if method == 'fourier':
+        down = scipy.signal.resample(mean, n)
+    if method == 'mean':
+        down = []
+        for i in range(0, len(mean), factor):
+            m = np.mean(mean[i:i+factor])
+            down.append(m)
+        down = np.array(down)
+    return down
+
+
+def normalize_01(sig):
+    norm = (sig-sig.min())/(sig.max()-sig.min())
+    return norm
+
+
+def normalize_mean_var(sig):
+    norm = (sig - sig.mean()) / sig.std()
+    return norm
+
+
+def convert_dtms_windowms_to_factor_dim(dt, window, TIME=1.0, LEN=10000):
+    orignal_dt_ms = TIME/LEN * 1000
+    factor = int(dt/orignal_dt_ms)
+    dim = int(window / dt)
+    return factor, dim
+
+
+def count_phases(sig):
+    N = len(sig)
+    phases = 1
+    for i in range(N-1):
+        s1 = 1 if sig[i] >= 0 else -1
+        s2 = 1 if sig[i+1] >= 0 else -1
+        if s1 != s2:
+            phases += 1
+    return phases

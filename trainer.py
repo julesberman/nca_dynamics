@@ -3,34 +3,6 @@ import numpy as np
 from tools import *
 
 
-def preprocess(signal, factor=1, method='mean'):
-    # take mean of all trials
-    mean = np.mean(signal, axis=0)
-    # down samples mean of trials
-    n = len(mean) // factor
-    if method == 'nth':
-        down = mean[::factor]
-    if method == 'fourier':
-        down = scipy.signal.resample(mean, n)
-    if method == 'mean':
-        down = []
-        for i in range(0, len(mean), factor):
-            m = np.mean(mean[i:i+factor])
-            down.append(m)
-        down = np.array(down)
-    return down
-
-
-def normalize_01(sig):
-    norm = (sig-sig.min())/(sig.max()-sig.min())
-    return norm
-
-
-def normalize_mean_var(sig):
-    norm = (sig - sig.mean()) / sig.std()
-    return norm
-
-
 def build_train_test_hankels(X, Y, dim, test_start, train_test_ratio):
 
     start = int(len(X) * test_start)
@@ -63,9 +35,6 @@ def train_test_method(X, Y, model, dim, train_test_ratio=0.2, betas=np.arange(0,
     test_start_range = np.linspace(0.0, 1.0-train_test_ratio, 100)
     T = len(test_start_range)
     B = len(betas)
-
-    # X = normalize_01(X)
-    # Y = normalize_01(Y)
 
     train_errors = np.zeros((B, T))
     test_errors = np.zeros((B, T))
