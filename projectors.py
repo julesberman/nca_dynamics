@@ -276,15 +276,11 @@ def eig_companion_Cshift(X_series, dim, beta=0):
     X0 = np.vstack((X0, np.ones(X0.shape[1])))
     reg_dim = dim + 1
     lam = beta * np.eye(reg_dim)
-    if beta == 0:
-        a = scipy.linalg.lstsq(X0.T, Xp)[0]
-    else:
-        a = (Xp @ X0.T) @ np.linalg.inv((X0 @ X0.T) + lam)
 
+    a = (Xp @ X0.T) @ np.linalg.inv((X0 @ X0.T) + lam)
     a, c = a[:-1], a[-1:]
     A = np.eye(dim, k=1)
     A[-1] = a
-
     w, vl = scipy.linalg.eig(A, left=True, right=False)
 
     sortorder = np.argsort(np.abs(w))
@@ -296,6 +292,47 @@ def eig_companion_Cshift(X_series, dim, beta=0):
     P_series = theta.real @ Xhan
 
     return P_series, theta, A, c
+
+
+def eig_companion_Cshift_time(X_series, dim, beta=0, window_factor=2):
+    N = len(X_series)
+    window = int(dim * window_factor)
+    thetas = []
+    for i in range(window, N, 1):
+
+        sl = slice(i-window, i)
+        Xhan = build_hankel(X_series[sl], dim)
+        X0w = Xhan[:, :-1]
+        Xpw = Xhan[:, 1:]
+
+        Xp1 = Xpw[-1]
+        X01 = np.vstack((X0w, np.ones(X0w.shape[1])))
+        reg_dim = dim + 1
+        lam = beta * np.eye(reg_dim)
+
+        a = (Xp1 @ X01.T) @ np.linalg.inv((X01 @ X01.T) + lam)
+        a = scipy.linalg.lstsq(X01.T, Xp1)[0]
+        a, c = a[:-1], a[-1:]
+        A = np.eye(dim, k=1)
+        A[-1] = a
+        w, vl = scipy.linalg.eig(A, left=True, right=False)
+
+        c_col = np.zeros((A.shape[1], 1))
+        c_col[-1] = c
+        A = np.concatenate((A, c_col), axis=1)
+        res = np.linalg.norm(Xpw-(A @ X01))
+
+        sortorder = np.argsort(np.abs(w))
+        w = w[sortorder][::-1]
+        theta = vl[:, sortorder][:, -1]
+        theta *= np.sign(theta[-1])
+        thetas.append(theta)
+
+    Xhan = build_hankel(X_series, dim)
+    theta = np.mean(thetas, axis=0)
+    P_series = theta.real @ Xhan
+
+    return P_series, theta
 
 
 def general_eig(X_series, dim, beta=0):
@@ -332,3 +369,11 @@ def solve_scale_shift(P_series, Y_series):
     P_series = P_series*a+b
 
     return P_series
+
+
+def solve_scale_shift_ab(P_series, Y_series):
+    P_series_1 = np.vstack((P_series, np.ones(len(P_series))))
+    ab = (Y_series @ P_series_1.T) @ np.linalg.inv((P_series_1 @ P_series_1.T))
+    a, b = ab[0], ab[1]
+
+    return a, b

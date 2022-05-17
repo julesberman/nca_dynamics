@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from tools import *
+from projectors import *
 import scipy
 
 
@@ -158,35 +159,109 @@ class EigenCShiftModel:
         return theta @ X + b
 
 
-class EigenTimeModel:
-    def __init__(self, name='', window=None):
+class EigenCShiftTimeModel:
+    def __init__(self, name='', window_factor=2.0):
         self.name = name
-        self.window = window
+        self.window_factor = window_factor
 
-    def train(self, X, y, dim, beta=0, shift=1, stride=1,):
+    def train(self, X, y, dim, beta=0):
 
-        X0 = X[:, :-shift].copy()
-        Xp = X[:, shift:].copy()
-        lam = beta * np.eye(dim)
+        if beta == 0:
+            beta = 1e-8
+        N = X.shape[1]
+
+        window = int(dim * self.window_factor)
+        thetas = []
+        for i in range(window, N, 1):
+
+            Xhan = X[:, i-window:i-dim]
+            X0w = Xhan[:, :-1]
+            Xpw = Xhan[:, 1:]
+
+            Xp1 = Xpw[-1]
+            X01 = np.vstack((X0w, np.ones(X0w.shape[1])))
+            reg_dim = dim + 1
+            lam = beta * np.eye(reg_dim)
+
+            a = (Xp1 @ X01.T) @ np.linalg.inv((X01 @ X01.T) + lam)
+            a, c = a[:-1], a[-1:]
+            A = np.eye(dim, k=1)
+            A[-1] = a
+            w, vl = scipy.linalg.eig(A, left=True, right=False)
+
+            sortorder = np.argsort(np.abs(w))
+            w = w[sortorder][::-1]
+            theta = vl[:, sortorder][:, -1]
+            theta *= np.sign(theta[-1])
+            thetas.append(theta)
+
+        thetas = np.array(thetas)
+        theta = np.mean(thetas, axis=0)
+
+        # for i, t in enumerate(thetas[::10]):
+        #     plt.plot(t.real+i)
+        #     plt.show()
+        # theta = np.mean(thetas, axis=0)
+        # d = np.arange(0, len(theta))
+        # t_std_real = np.std(thetas.real, axis=0)
+        # plt.errorbar(d, theta.real, t_std_real, label='Real')
+        # plt.title(beta)
+        # plt.show()
+
+        theta = theta.real
+        y_hat = theta @ X
+
+        # solve for scale and bias
+        y_hat = np.vstack((y_hat, np.ones(len(y_hat))))
+        ab = (y @ y_hat.T) @ np.linalg.inv((y_hat @ y_hat.T))
+        a, b = ab[0], ab[1]
+
+        # pass a into theta so filter is scaled correctly
+        theta = theta * a
+
+        # final prediction
+        pred = theta @ X + b
+
+        return pred, theta, (a, b)
+
+    def test(self, X, theta, params):
+        a, b = params
+        return theta @ X + b
+
+
+class EigenTimeModel:
+    def __init__(self, name='', window_factor=2.0):
+        self.name = name
+        self.window_factor = window_factor
+
+    def train(self, X, y, dim, beta=0):
 
         N = X.shape[1]
         y_hat = np.zeros(N)
 
-        window = self.window
-        if window == None:
-            window = dim * 4
+        window = int(dim * self.window_factor)
 
-        for i in range(0, N-window, stride):
+        for i in range(window, N, 1):
 
-            X0 = X0[:, i:i+window]
-            Xp = Xp[:, i:i+window]
-            X0Xp = X0 @ Xp.T
-            X0X0 = X0 @ X0.T
-            # solve eigenvalue problem
-            w, vl = scipy.linalg.eig(X0Xp, (X0X0+lam))
+            Xhan = X[:, i-window:i-dim]
+            X0w = Xhan[:, :-1]
+            Xpw = Xhan[:, 1:]
 
-            theta = vl[:, np.nanargmax(np.abs(w))]
-            w = np.sort(np.abs(w))[::-1]
+            Xp1 = Xpw[-1]
+            X01 = np.vstack((X0w, np.ones(X0w.shape[1])))
+            reg_dim = dim + 1
+            lam = beta * np.eye(reg_dim)
+
+            a = (Xp1 @ X01.T) @ np.linalg.inv((X01 @ X01.T) + lam)
+            a, c = a[:-1], a[-1:]
+            A = np.eye(dim, k=1)
+            A[-1] = a
+            w, vl = scipy.linalg.eig(A, left=True, right=False)
+
+            sortorder = np.argsort(np.abs(w))
+            w = w[sortorder][::-1]
+            theta = vl[:, sortorder][:, -1]
+            theta *= np.sign(theta[-1])
 
             # project original series onto largest_evec
             proj_series = theta @ X
