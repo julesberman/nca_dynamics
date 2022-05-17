@@ -311,16 +311,41 @@ def eig_companion_Cshift_time(X_series, dim, beta=0, window_factor=2):
         lam = beta * np.eye(reg_dim)
 
         a = (Xp1 @ X01.T) @ np.linalg.inv((X01 @ X01.T) + lam)
-        a = scipy.linalg.lstsq(X01.T, Xp1)[0]
         a, c = a[:-1], a[-1:]
         A = np.eye(dim, k=1)
         A[-1] = a
         w, vl = scipy.linalg.eig(A, left=True, right=False)
 
-        c_col = np.zeros((A.shape[1], 1))
-        c_col[-1] = c
-        A = np.concatenate((A, c_col), axis=1)
-        res = np.linalg.norm(Xpw-(A @ X01))
+        sortorder = np.argsort(np.abs(w))
+        w = w[sortorder][::-1]
+        theta = vl[:, sortorder][:, -1]
+        theta *= np.sign(theta[-1])
+        thetas.append(theta)
+
+    Xhan = build_hankel(X_series, dim)
+    theta = np.mean(thetas, axis=0)
+    P_series = theta.real @ Xhan
+
+    return P_series, theta
+
+
+def eig_companion_time(X_series, dim, beta=0, window_factor=2):
+    N = len(X_series)
+    window = int(dim * window_factor)
+    thetas = []
+    for i in range(window, N, 1):
+
+        sl = slice(i-window, i)
+        Xhan = build_hankel(X_series[sl], dim)
+        X0w = Xhan[:, :-1]
+        Xpw = Xhan[:, 1:]
+        Xp1 = Xpw[-1]
+        lam = beta * np.eye(dim)
+
+        a = (Xp1 @ X0w.T) @ np.linalg.inv((X0w @ X0w.T) + lam)
+        A = np.eye(dim, k=1)
+        A[-1] = a
+        w, vl = scipy.linalg.eig(A, left=True, right=False)
 
         sortorder = np.argsort(np.abs(w))
         w = w[sortorder][::-1]

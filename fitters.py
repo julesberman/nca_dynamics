@@ -198,16 +198,6 @@ class EigenCShiftTimeModel:
         thetas = np.array(thetas)
         theta = np.mean(thetas, axis=0)
 
-        # for i, t in enumerate(thetas[::10]):
-        #     plt.plot(t.real+i)
-        #     plt.show()
-        # theta = np.mean(thetas, axis=0)
-        # d = np.arange(0, len(theta))
-        # t_std_real = np.std(thetas.real, axis=0)
-        # plt.errorbar(d, theta.real, t_std_real, label='Real')
-        # plt.title(beta)
-        # plt.show()
-
         theta = theta.real
         y_hat = theta @ X
 
@@ -236,11 +226,12 @@ class EigenTimeModel:
 
     def train(self, X, y, dim, beta=0):
 
+        if beta == 0:
+            beta = 1e-8
         N = X.shape[1]
-        y_hat = np.zeros(N)
 
         window = int(dim * self.window_factor)
-
+        thetas = []
         for i in range(window, N, 1):
 
             Xhan = X[:, i-window:i-dim]
@@ -248,12 +239,9 @@ class EigenTimeModel:
             Xpw = Xhan[:, 1:]
 
             Xp1 = Xpw[-1]
-            X01 = np.vstack((X0w, np.ones(X0w.shape[1])))
-            reg_dim = dim + 1
-            lam = beta * np.eye(reg_dim)
+            lam = beta * np.eye(dim)
 
-            a = (Xp1 @ X01.T) @ np.linalg.inv((X01 @ X01.T) + lam)
-            a, c = a[:-1], a[-1:]
+            a = (Xp1 @ X0w.T) @ np.linalg.inv((X0w @ X0w.T) + lam)
             A = np.eye(dim, k=1)
             A[-1] = a
             w, vl = scipy.linalg.eig(A, left=True, right=False)
@@ -262,10 +250,13 @@ class EigenTimeModel:
             w = w[sortorder][::-1]
             theta = vl[:, sortorder][:, -1]
             theta *= np.sign(theta[-1])
+            thetas.append(theta)
 
-            # project original series onto largest_evec
-            proj_series = theta @ X
-            y_hat[i:i+len(proj_series)] = proj_series
+        thetas = np.array(thetas)
+        theta = np.mean(thetas, axis=0)
+
+        theta = theta.real
+        y_hat = theta @ X
 
         # solve for scale and bias
         y_hat = np.vstack((y_hat, np.ones(len(y_hat))))

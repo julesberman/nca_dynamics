@@ -18,7 +18,7 @@ def set_seaborn(params={}):
     sns.color_palette("mako")
 
     sns.set_theme(rc={'lines.linewidth': 1.6,
-                      'lines.markersize': 10,
+                      'lines.markersize': 8,
                       'font.family': 'Arial',
                       'font.size': 18,
                       'axes.titlecolor': 'black',
@@ -502,12 +502,13 @@ def build_exp_series(a_s, e_s, noise=0.0, time=np.arange(0, 3, 0.1)):
     components = []
     X = np.zeros_like(time)
     for i in range(len(e_s)):
-        c = exp_f(time, e_s[i], a_s[i]) + (noise * np.random.randn(len(X)))
+        c = exp_f(time, e_s[i], a_s[i])
         c = c.real
         X += c
         components.append(c)
 
-    y_i = np.argmax(e_s.real)
+    X *= (1+noise * np.random.randn(len(X)))
+    y_i = np.argmax(np.abs(e_s.real))
     Y = components[y_i]
 
     return X, Y, time, components
