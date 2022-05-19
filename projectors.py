@@ -294,10 +294,13 @@ def eig_companion_Cshift(X_series, dim, beta=0):
     return P_series, theta, A, c
 
 
-def eig_companion_Cshift_time(X_series, dim, beta=0, window_factor=2):
+def eig_companion_Cshift_time(X_series, dim, beta=0, window_factor=2, window_size=None, return_vals=False):
     N = len(X_series)
     window = int(dim * window_factor)
-    thetas = []
+    # window_size overrides
+    if window_size is not None:
+        window = window_size
+    thetas, ws = [], []
     for i in range(window, N, 1):
 
         sl = slice(i-window, i)
@@ -321,10 +324,14 @@ def eig_companion_Cshift_time(X_series, dim, beta=0, window_factor=2):
         theta = vl[:, sortorder][:, -1]
         theta *= np.sign(theta[-1])
         thetas.append(theta)
+        ws.append(w)
 
     Xhan = build_hankel(X_series, dim)
     theta = np.mean(thetas, axis=0)
     P_series = theta.real @ Xhan
+
+    if return_vals:
+        return P_series, theta, np.array(ws)
 
     return P_series, theta
 
@@ -358,6 +365,38 @@ def eig_companion_time(X_series, dim, beta=0, window_factor=2):
     P_series = theta.real @ Xhan
 
     return P_series, theta
+    # N = len(X_series)
+    # window = int(dim * window_factor)
+    # thetas, ws = [], []
+    # for i in range(window, N, 1):
+
+    #     sl = slice(i-window, i)
+    #     Xhan = build_hankel(X_series[sl], dim)
+    #     X0w = Xhan[:, :-1]
+    #     Xpw = Xhan[:, 1:]
+
+    #     Xp1 = Xpw[-1]
+    #     X01 = Xpw
+    #     lam = beta * np.eye(dim)
+    #     a = (Xp1 @ X01.T) @ np.linalg.inv((X01 @ X01.T) + lam)
+
+    #     A = np.eye(dim, k=1)
+    #     A[-1] = a
+    #     w, vl = scipy.linalg.eig(A, left=True, right=False)
+
+    #     sortorder = np.argsort(np.abs(w))
+    #     w = w[sortorder][::-1]
+    #     theta = vl[:, sortorder][:, -1]
+    #     theta *= np.sign(theta[-1])
+    #     thetas.append(theta)
+    #     ws.append(w)
+
+    # ws = np.array(ws)
+    # thetas = np.array(thetas)
+    # # window
+    # Xhan = build_hankel(X_series, dim)
+    # theta = np.mean(thetas, axis=0)
+    # P_series = theta.real @ Xhan
 
 
 def general_eig(X_series, dim, beta=0):

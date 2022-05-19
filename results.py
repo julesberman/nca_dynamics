@@ -38,7 +38,7 @@ class Results:
         return self.betas[opt_i]
 
     def get_filter_for_beta(self, beta):
-        i = self.betas == beta
+        i = (self.betas == beta)[0]
         opt_f = self.filters[i][0]
         return (np.mean(opt_f, axis=0), np.std(opt_f, axis=0)), self.betas[i][0]
 

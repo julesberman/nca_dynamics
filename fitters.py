@@ -228,8 +228,8 @@ class EigenTimeModel:
 
         if beta == 0:
             beta = 1e-8
-        N = X.shape[1]
 
+        N = X.shape[1]
         window = int(dim * self.window_factor)
         thetas = []
         for i in range(window, N, 1):
@@ -237,13 +237,17 @@ class EigenTimeModel:
             Xhan = X[:, i-window:i-dim]
             X0w = Xhan[:, :-1]
             Xpw = Xhan[:, 1:]
+            Xp1 = Xpw[-1]  # take last row
 
-            Xp1 = Xpw[-1]
+            # for regularization
             lam = beta * np.eye(dim)
 
+            # fit bottom row of companion matrix
             a = (Xp1 @ X0w.T) @ np.linalg.inv((X0w @ X0w.T) + lam)
             A = np.eye(dim, k=1)
             A[-1] = a
+
+            # solve eig
             w, vl = scipy.linalg.eig(A, left=True, right=False)
 
             sortorder = np.argsort(np.abs(w))
@@ -253,6 +257,7 @@ class EigenTimeModel:
             thetas.append(theta)
 
         thetas = np.array(thetas)
+        # thetas = thetas[np.linalg.norm(thetas.imag, axis=1) < 0.1]
         theta = np.mean(thetas, axis=0)
 
         theta = theta.real

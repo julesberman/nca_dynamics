@@ -16,19 +16,8 @@ import seaborn as sns
 def set_seaborn(params={}):
     sns.set()
     sns.color_palette("mako")
+    sns.set_style('white')
 
-    sns.set_theme(rc={'lines.linewidth': 1.6,
-                      'lines.markersize': 8,
-                      'font.family': 'Arial',
-                      'font.size': 18,
-                      'axes.titlecolor': 'black',
-                      'axes.titleweight': 'bold',
-                      'axes.labelcolor': 'black',
-                      'legend.facecolor': 'white',
-                      'legend.edgecolor': 'black',
-                      'figure.dpi': 80,
-                      **params
-                      })
 
 
 def plot_3d(X, title="", size=(5, 12)):

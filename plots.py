@@ -61,8 +61,10 @@ def plot_params(params, title=''):
 
 def plot_filter(filter_mean_std, beta, title=''):
     figure(figsize=(8, 8))
+    norm = filter_mean_std[0][-1]
     d = len(filter_mean_std[0])
-    plt_errors(np.linspace(0, d, d), *filter_mean_std, '.-')
+    plt_errors(np.linspace(0, d, d),
+               filter_mean_std[0]/norm, filter_mean_std[1]/norm, '.-')
     plt.title(f'{title} Filter for beta={round(beta,3)}')
     plt.show()
 
