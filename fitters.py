@@ -257,7 +257,8 @@ class EigenTimeModel:
             thetas.append(theta)
 
         thetas = np.array(thetas)
-        # thetas = thetas[np.linalg.norm(thetas.imag, axis=1) < 0.1]
+        # drop imag vectors
+        # thetas = thetas[np.linalg.norm(thetas.imag, axis=1) < 0.2]
         theta = np.mean(thetas, axis=0)
 
         theta = theta.real
