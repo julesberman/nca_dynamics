@@ -17,7 +17,7 @@ def set_seaborn(params={}):
     sns.set()
     sns.set_style('white')
     sns.set_palette("tab10")
-    plt.rcParams['figure.dpi'] = 300
+    # plt.rcParams['figure.dpi'] = 300
 
 
 def plot_3d(X, title="", size=(5, 12)):

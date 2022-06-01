@@ -331,7 +331,7 @@ def eig_companion_Cshift_time(X_series, dim, beta=0, window_factor=2, window_siz
     P_series = theta.real @ Xhan
 
     if return_vals:
-        return P_series, theta, np.array(ws)
+        return P_series, theta, np.array(ws), np.array(thetas)
 
     return P_series, theta
 
